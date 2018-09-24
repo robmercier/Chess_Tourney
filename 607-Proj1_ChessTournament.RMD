@@ -1,0 +1,93 @@
+library(tidyr)
+library(knitr)
+
+#Reading in data
+tourney <- read.table("TourneyInfoProj1.txt", sep = "\t", header = FALSE)
+
+#cleaning Lines
+tourney_lines <- data.frame(str_replace_all(tourney$V1,"-",""))
+print(tourney_lines)
+
+#Taking out extra lines
+tourney_lines <- data.frame(tourney_lines[!apply(tourney_lines == "", 1, all),])
+
+#Combining Lines
+tourney_DF <- data.frame(c())
+print(tourney_DF)
+for (i in 1:dim(tourney_lines)[1]){
+  if (i %% 2 == 1) {
+    No1 <- rbind(tourney_DF$No1, as.character(tourney_lines[i,1]))
+    No2 <- as.character(tourney_lines[i+1,1])
+    Combo <- data.frame(paste0(No1, No2))
+    names(Combo) <- "Combo"
+    tourney_DF <- rbind(tourney_DF, Combo)
+  } 
+}
+print(tourney_DF)
+
+#Separating
+THeaders <- c("Pair","Player Name","Total","R1","R2","R3", "R4","R5","R6","R7","State","ID/Rtg (before->After)","Pts","1","2","3","4","5","6","7","Average Start Rating")
+tourney_DF2 <- separate(data = new_table, col = Combined, into = THeaders, sep = "\\|")
+print(tourney_DF2)
+tourney_DF2 <- tourney_DF2[-1, ]
+ID <- str_extract_all(tourney_DF2$`ID/Rtg (before->After)`,"\\b\\d{1,}")
+ID <- data.frame(as.character(ID))
+ID <- separate(data = ID, col = as.character.ID., into = c("c1","c2","c3"), sep = ",")
+kable(head(ID))
+
+c1 <- str_extract_all(ID$c1,"[[:digit:]]{1,}")
+c2 <- str_extract_all(ID$c2,"[[:digit:]]{1,}")
+c3 <- str_extract_all(ID$c3,"[[:digit:]]{1,}")
+
+tourney_DF2$`ID` <- as.character(c1)
+tourney_DF2$`before` <- as.character(c2)
+tourney_DF2$`after` <- as.character(c3)
+print(tourney_DF2)
+
+tourney_DF3 <- subset(tourney_DF2, select = c(1,2,11,22,3,23,24,21))
+kable(head(tourney_DF3))
+
+
+#opponent totals
+oppo1 <- data.frame(as.numeric(str_extract_all(tourney_DF2$`R1`,"[[:digit:]]{1,}")))
+oppo2 <- data.frame(as.numeric(str_extract_all(tourney_DF2$`R2`,"[[:digit:]]{1,}")))
+oppo3 <- data.frame(as.numeric(str_extract_all(tourney_DF2$`R3`,"[[:digit:]]{1,}")))
+oppo4 <- data.frame(as.numeric(str_extract_all(tourney_DF2$`R4`,"[[:digit:]]{1,}")))
+oppo5 <- data.frame(as.numeric(str_extract_all(tourney_DF2$`R5`,"[[:digit:]]{1,}")))
+oppo6 <- data.frame(as.numeric(str_extract_all(tourney_DF2$`R6`,"[[:digit:]]{1,}")))
+oppo7 <- data.frame(as.numeric(str_extract_all(tourney_DF2$`R7`,"[[:digit:]]{1,}")))
+
+#New table
+oppo <- cbind(tourney_DF2$Pair, tourney_DF2$`Player Name`, oppo1, oppo2, oppo3, oppo4, oppo5, oppo6, oppo7)
+names(oppo) <- c("Pair","Player Name","Opp 1","Opp 2","Opp 3","Opp 4","Opp 5","Opp 6","Opp 7")
+
+#Games played
+for(i in 1:dim(oppo)[1]){
+  oppo$NGames[i] <- 7 - as.numeric(sum(is.na(oppo[i,])))
+}
+kable(oppo)
+
+#Deleting NAs
+oppo[is.na(oppo)] <- as.numeric(0)
+tourney_DF3$`Average Start Rating` <- as.numeric(0)
+
+#calculating Starting Rating
+for (r in 3:9){
+  for (d in 1:dim(tourney_DF3)[1]){
+    for (i in 1:dim(tourney_DF3)[1]){
+      if (as.numeric(oppo[d,r]) == as.numeric(tourney_DF3$Pair[i])){
+        tourney_DF3$`Average Start Rating`[d] <- as.numeric(tourney_DF3$`Average Start Rating`[d]) + as.numeric(tourney_DF3$`before`[i])
+      }
+    }
+  }
+}
+
+# Average 
+tourney_DF3$`Average Start Rating`  <- as.numeric(tourney_DF3$`Average Start Rating`) / oppo$NGames
+
+#Table
+kable(tourney_DF3, row.names = FALSE)
+
+#CSV File
+write.csv(tourney_DF3, file = "Tourney_final.csv")
+
